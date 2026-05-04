@@ -14,8 +14,10 @@ Move your mouse, click, scroll, and drag — all with hand gestures. No hardware
 
 ## Features
 
-- **15+ hand gestures** — click, double-click, right-click, scroll, drag, volume control
+- **15+ hand gestures** — click, double-click, right-click, scroll, drag, volume & media control
 - **Full GUI control panel** — sensitivity/smoothing sliders, gesture toggles, live preview
+- **System tray** — close minimises to tray; double-click to restore; right-click menu to start/stop/quit
+- **Camera auto-recovery** — automatically reconnects if your webcam is unplugged and plugged back in
 - **Privacy-first** — no network calls, no data storage, no telemetry
 - **Cross-platform** — Linux, macOS, Windows
 - **Low-end optimized** — configurable frame skip, model complexity, resolution
@@ -54,8 +56,8 @@ chmod +x scripts/install/linux.sh scripts/install/macos.sh run.sh
 | ↔️ Two finger spread | Horizontal scroll |
 | ✊ Closed fist | Drag mode |
 | 🖐️ Open palm (hold 1s) | Pause system |
-| 👍 Thumb wave right | Volume up |
-| 👈 Thumb wave left | Volume down |
+| 👍 Thumb wave right | Volume up (system) |
+| 👈 Thumb wave left | Volume down (system) |
 | 🙌 Two hands detected | Shortcut mode |
 
 ## Installation
@@ -187,6 +189,10 @@ ffplay /dev/video0
 
 If your camera is on a different device, set `device_index` in `settings.json`.
 
+### Camera disconnects while running
+
+Airpoint automatically attempts to reconnect (3 retries, 2 seconds apart). The status bar will show "Camera disconnected. Reconnecting..." while it tries. If all retries fail, click **Stop** then **Start Tracking** after plugging the camera back in.
+
 ### Low FPS
 
 - Increase `frame_skip` in `settings.json` (`3` or `4`)
@@ -251,7 +257,7 @@ app/
 │   └── smoothing.py        # EMA + SMA cursor smoothing
 ├── control/
 │   ├── mouse.py            # Cross-platform mouse control (pynput)
-│   └── hotkeys.py          # Global keyboard shortcuts
+│   └── hotkeys.py          # Global keyboard shortcuts + MediaController
 ├── config/
 │   └── settings.json       # All tunable settings
 └── utils/
@@ -285,7 +291,7 @@ Airpoint is **fully offline** by design:
 - **User control** — toggle camera off via GUI when not in use
 - **No telemetry** — no analytics, no crash reports, no tracking
 
-The hand tracking model is downloaded once from Google's servers on first run and cached locally.
+The hand tracking model is downloaded once from Google's servers on first run, verified over HTTPS, and cached locally at `~/.cache/airpoint/models/`.
 
 ## Development
 
