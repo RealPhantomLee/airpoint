@@ -21,7 +21,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install\windows.ps1
 | CPU | Dual-core 2.0 GHz |
 | RAM | 4 GB |
 | Webcam | 720p |
-| Python | 3.10+ |
+| Python | 3.12 |
 | Disk | ~200 MB (includes model) |
 
 ### Recommended
@@ -30,7 +30,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install\windows.ps1
 | CPU | Quad-core 2.5 GHz+ |
 | RAM | 8 GB |
 | Webcam | 1080p |
-| Python | 3.11+ |
+| Python | 3.12 |
 
 ## Platform Setup
 

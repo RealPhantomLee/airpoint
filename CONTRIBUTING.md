@@ -33,12 +33,14 @@ Before submitting a PR, test on your platform:
 
 ```bash
 # Linux
+chmod +x scripts/install/linux.sh run.sh
 ./scripts/install/linux.sh
 
 # macOS
+chmod +x scripts/install/macos.sh run.sh
 ./scripts/install/macos.sh
 
-# Windows
+# Windows (PowerShell)
 powershell -ExecutionPolicy Bypass -File scripts\install\windows.ps1
 ```
 

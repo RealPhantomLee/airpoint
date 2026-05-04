@@ -94,8 +94,10 @@ class GestureEngine:
         if index_tip != (0.0, 0.0):
             gestures["move"] = index_tip
 
+        extended_count = self._count_extended(landmarks)
+
         # === PAUSE: Open palm hold ===
-        if self._is_open_palm(landmarks):
+        if extended_count >= 4:
             if self._palm_hold_start is None:
                 self._palm_hold_start = time.time()
             elif (time.time() - self._palm_hold_start) > 1.0:
@@ -140,11 +142,17 @@ class GestureEngine:
                 self._lock_gesture()
 
         # === DRAG: Closed fist ===
-        if self._is_closed_fist(landmarks):
+        if extended_count == 0:
             gestures["drag"] = True
 
+        two_fingers_up = (
+            extended_count == 2
+            and self._is_finger_extended(landmarks, "index")
+            and self._is_finger_extended(landmarks, "middle")
+        )
+
         # === VERTICAL SCROLL: Two fingers (index + middle) up/down ===
-        if self._is_two_fingers_up(landmarks):
+        if two_fingers_up:
             index_y = landmarks[8][1]
             if self._prev_scroll_y is not None:
                 delta = self._prev_scroll_y - index_y
@@ -159,7 +167,7 @@ class GestureEngine:
             self._prev_scroll_y = None
 
         # === HORIZONTAL SCROLL: Two fingers spread ===
-        if self._is_two_fingers_up(landmarks):
+        if two_fingers_up:
             spread = landmarks[8][0] - landmarks[12][0]
             if self._prev_scroll_x is not None:
                 delta = spread - self._prev_scroll_x

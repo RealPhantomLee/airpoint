@@ -4,7 +4,7 @@
 
 Move your mouse, click, scroll, and drag — all with hand gestures. No hardware modifications. No cloud processing. Just your webcam.
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
@@ -25,8 +25,11 @@ Move your mouse, click, scroll, and drag — all with hand gestures. No hardware
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
+
+# Make scripts executable (Linux/macOS only — do this once after cloning)
+chmod +x scripts/install/linux.sh scripts/install/macos.sh run.sh
 
 # Install (one-liner for your OS)
 ./scripts/install/linux.sh   # Linux
@@ -35,6 +38,7 @@ cd airpoint
 
 # Run
 ./run.sh                     # Linux/macOS
+.\run.ps1                    # Windows (PowerShell)
 ```
 
 ## Gesture Map
@@ -58,15 +62,16 @@ cd airpoint
 
 ### Requirements
 
-- Python 3.10+
+- Python 3.12
 - Webcam (720p minimum, 1080p recommended)
 - ~200 MB disk space (includes ML model download)
 
 ### Linux (Arch, Ubuntu, Debian, Fedora)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
+chmod +x scripts/install/linux.sh run.sh
 ./scripts/install/linux.sh
 ./run.sh
 ```
@@ -74,8 +79,9 @@ cd airpoint
 ### macOS
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
+chmod +x scripts/install/macos.sh run.sh
 ./scripts/install/macos.sh
 ./run.sh
 ```
@@ -85,22 +91,21 @@ cd airpoint
 ### Windows
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
 powershell -ExecutionPolicy Bypass -File scripts\install\windows.ps1
-.\venv\Scripts\Activate.ps1
-python app\main.py
+.\run.ps1
 ```
 
 ### Manual Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
 
 python -m venv venv
-source venv/bin/activate          # Linux/macOS
-# or: venv\Scripts\Activate.ps1   # Windows
+source venv/bin/activate           # Linux/macOS
+# or: .\venv\Scripts\Activate.ps1  # Windows
 
 pip install -r requirements.txt
 python app/main.py
@@ -242,6 +247,7 @@ app/
 ├── vision/
 │   ├── hand_tracker.py     # MediaPipe Tasks hand detection
 │   ├── gesture_engine.py   # Gesture recognition (15+ gestures)
+│   ├── frame_processor.py  # Frame preprocessing and optimization
 │   └── smoothing.py        # EMA + SMA cursor smoothing
 ├── control/
 │   ├── mouse.py            # Cross-platform mouse control (pynput)
@@ -285,7 +291,7 @@ The hand tracking model is downloaded once from Google's servers on first run an
 
 ```bash
 # Clone and install
-git clone https://github.com/YOUR_USERNAME/airpoint.git
+git clone https://github.com/RealPhantomLee/airpoint.git
 cd airpoint
 python -m venv venv
 source venv/bin/activate

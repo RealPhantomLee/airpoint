@@ -44,5 +44,4 @@ Write-Host "╚═════════════════════�
 Write-Host ""
 Write-Host "To start Airpoint:"
 Write-Host "  cd $ProjectDir"
-Write-Host "  .\venv\Scripts\Activate.ps1"
-Write-Host "  python app\main.py"
+Write-Host "  .\run.ps1"

@@ -21,6 +21,8 @@ class MouseController:
         self.sensitivity = settings.get("cursor.sensitivity", 1.5)
         self.invert_x = settings.get("cursor.invert_x", False)
         self.invert_y = settings.get("cursor.invert_y", False)
+        self.edge_boost = settings.get("cursor.edge_boost", False)
+        self.edge_boost_factor = settings.get("cursor.edge_boost_factor", 2.0)
 
         self._mouse = mouse.Controller()
         self._screen_width, self._screen_height = get_screen_size()
@@ -39,14 +41,41 @@ class MouseController:
         if self.invert_y:
             smooth_y = 1.0 - smooth_y
 
-        screen_x = int(smooth_x * self._screen_width)
-        screen_y = int(smooth_y * self._screen_height)
+        # Edge boost: amplify movement near screen edges so cursor can reach corners
+        if self.edge_boost:
+            smooth_x = self._apply_edge_boost(smooth_x)
+            smooth_y = self._apply_edge_boost(smooth_y)
+
+        cx = 0.5 + (smooth_x - 0.5) * self.sensitivity
+        cy = 0.5 + (smooth_y - 0.5) * self.sensitivity
+
+        screen_x = int(cx * self._screen_width)
+        screen_y = int(cy * self._screen_height)
 
         screen_x = max(0, min(screen_x, self._screen_width - 1))
         screen_y = max(0, min(screen_y, self._screen_height - 1))
 
         self._mouse.position = (screen_x, screen_y)
         self._prev_pos = (smooth_x, smooth_y)
+
+    def _apply_edge_boost(self, value):
+        if not self.edge_boost:
+            return value
+
+        factor = self.edge_boost_factor
+
+        if value < 0.5:
+            # Lower half: push toward 0
+            normalized = value / 0.5
+            boosted = normalized ** factor
+            return boosted * 0.5
+        else:
+            # Upper half: push toward 1
+            distance_from_edge = 1.0 - value
+            normalized = distance_from_edge / 0.5
+            boosted = normalized ** factor
+            new_distance = boosted * 0.5
+            return 1.0 - new_distance
 
     def click(self):
         if not self._is_paused:

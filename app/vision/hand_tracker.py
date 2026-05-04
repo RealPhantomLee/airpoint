@@ -1,5 +1,7 @@
 """Hand tracking using MediaPipe Tasks Vision API (v0.10+)."""
 
+import time
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -9,8 +11,8 @@ from typing import Optional
 from pathlib import Path
 
 from app.config import Settings
+from app.vision.frame_processor import FrameProcessor
 
-# Bundled model name for MediaPipe Tasks
 MODEL_NAME = "hand_landmarker.task"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 
@@ -18,11 +20,20 @@ MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/han
 class HandTracker:
     """Real-time hand landmark detection using MediaPipe Tasks API."""
 
+    _CONNECTIONS = [
+        (0, 1), (1, 2), (2, 3), (3, 4),
+        (0, 5), (5, 6), (6, 7), (7, 8),
+        (5, 9), (9, 10), (10, 11), (11, 12),
+        (9, 13), (13, 14), (14, 15), (15, 16),
+        (13, 17), (17, 18), (18, 19), (19, 20),
+        (0, 17),
+    ]
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self._model_path = self._get_or_download_model()
+        self.frame_processor = FrameProcessor(settings)
 
-        # HandLandmarker options
         base_options = python.BaseOptions(model_asset_path=str(self._model_path))
         options = vision.HandLandmarkerOptions(
             base_options=base_options,
@@ -40,7 +51,7 @@ class HandTracker:
         )
 
         self.landmarker = vision.HandLandmarker.create_from_options(options)
-        self._frame_count = 0
+        self._start_ms = int(time.time() * 1000)
 
     def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, list]:
         """
@@ -52,16 +63,14 @@ class HandTracker:
         Returns:
             Tuple of (annotated_frame, list_of_hand_results)
         """
-        # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Pre-process frame (low-light enhancement, GoPro correction)
+        processed = self.frame_processor.process(frame)
 
-        # Create MediaPipe Image
+        rgb_frame = cv2.cvtColor(processed, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-        # Detect hands (timestamp in milliseconds)
-        timestamp_ms = self._frame_count * 33  # ~30 FPS
+        timestamp_ms = int(time.time() * 1000) - self._start_ms
         result = self.landmarker.detect_for_video(mp_image, timestamp_ms)
-        self._frame_count += 1
 
         hand_results = []
 
@@ -69,17 +78,17 @@ class HandTracker:
             for landmarks, handedness in zip(
                 result.hand_landmarks, result.handedness
             ):
-                # Draw landmarks on frame
                 self._draw_landmarks(frame, landmarks)
 
-                # Extract landmark coordinates
                 landmarks_list = []
                 for lm in landmarks:
-                    landmarks_list.append((lm.x, lm.y, lm.z))
+                    # Correct for GoPro wide-angle distortion
+                    cx, cy = self.frame_processor.undistort_landmark(lm.x, lm.y)
+                    landmarks_list.append((cx, cy, lm.z))
 
                 hand_results.append({
                     "landmarks": landmarks_list,
-                    "label": handedness[0].category_name,  # "Left" or "Right"
+                    "label": handedness[0].category_name,
                     "score": handedness[0].score,
                 })
 
@@ -89,79 +98,36 @@ class HandTracker:
         """Draw hand landmarks on frame."""
         h, w, _ = frame.shape
 
-        # Draw connections (skeleton)
-        connections = [
-            (0, 1), (1, 2), (2, 3), (3, 4),          # Thumb
-            (0, 5), (5, 6), (6, 7), (7, 8),          # Index
-            (5, 9), (9, 10), (10, 11), (11, 12),     # Middle
-            (9, 13), (13, 14), (14, 15), (15, 16),   # Ring
-            (13, 17), (17, 18), (18, 19), (19, 20),  # Pinky
-            (0, 17),                                  # Palm base
-        ]
-
-        # Draw connections
-        for start, end in connections:
+        for start, end in self._CONNECTIONS:
             if start < len(landmarks) and end < len(landmarks):
                 pt1 = (int(landmarks[start].x * w), int(landmarks[start].y * h))
                 pt2 = (int(landmarks[end].x * w), int(landmarks[end].y * h))
                 cv2.line(frame, pt1, pt2, (0, 255, 0), 1)
 
-        # Draw landmarks
         for lm in landmarks:
             x, y = int(lm.x * w), int(lm.y * h)
             cv2.circle(frame, (x, y), 2, (0, 0, 255), -1)
 
     def get_finger_tip(self, hand_result: dict, finger_index: int) -> tuple[float, float]:
-        """
-        Get normalized coordinates of a finger tip.
-
-        Finger indices:
-            4: Thumb tip
-            8: Index finger tip
-            12: Middle finger tip
-            16: Ring finger tip
-            20: Pinky tip
-
-        Args:
-            hand_result: Hand detection result dict
-            finger_index: MediaPipe landmark index
-
-        Returns:
-            Tuple of (x, y) normalized coordinates (0.0-1.0)
-        """
         if not hand_result.get("landmarks"):
             return (0.0, 0.0)
-
         landmarks = hand_result["landmarks"]
         if finger_index < len(landmarks):
             return (landmarks[finger_index][0], landmarks[finger_index][1])
         return (0.0, 0.0)
 
     def get_landmark(self, hand_result: dict, landmark_index: int) -> tuple[float, float, float]:
-        """Get a specific landmark's (x, y, z) coordinates."""
         if hand_result.get("landmarks") and landmark_index < len(hand_result["landmarks"]):
             return hand_result["landmarks"][landmark_index]
         return (0.0, 0.0, 0.0)
 
     def calculate_distance(self, point1: tuple, point2: tuple) -> float:
-        """
-        Calculate Euclidean distance between two 2D or 3D points.
-
-        Args:
-            point1: (x, y) or (x, y, z)
-            point2: (x, y) or (x, y, z)
-
-        Returns:
-            Normalized distance
-        """
         return np.sqrt(sum((a - b) ** 2 for a, b in zip(point1, point2)))
 
     def close(self):
-        """Release MediaPipe resources."""
         self.landmarker.close()
 
     def _get_or_download_model(self) -> Path:
-        """Get model path, downloading if necessary."""
         cache_dir = Path.home() / ".cache" / "airpoint" / "models"
         cache_dir.mkdir(parents=True, exist_ok=True)
         model_path = cache_dir / MODEL_NAME
