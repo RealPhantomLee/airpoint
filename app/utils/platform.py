@@ -91,3 +91,32 @@ def get_camera_device_path(index: int = 0) -> str:
     elif get_os() == "macos":
         return str(index)  # OpenCV uses AVFoundation indices
     return f"/dev/video{index}"
+
+
+def detect_cameras(max_index: int = 8) -> list[dict]:
+    """
+    Probe indices 0..max_index-1 and return cameras that open successfully.
+    Each entry is {"index": int, "name": str}.
+    Runs synchronously — call from a background thread.
+    """
+    import cv2
+    cameras = []
+    for i in range(max_index):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            cameras.append({"index": i, "name": _get_camera_name(i)})
+        cap.release()
+    return cameras
+
+
+def _get_camera_name(index: int) -> str:
+    """Return a human-readable camera name, falling back to 'Camera N'."""
+    if get_os() == "linux":
+        from pathlib import Path
+        name_path = Path(f"/sys/class/video4linux/video{index}/name")
+        if name_path.exists():
+            try:
+                return name_path.read_text().strip()
+            except OSError:
+                pass
+    return f"Camera {index}"

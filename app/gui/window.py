@@ -141,6 +141,16 @@ class CameraThread(QThread):
         return frame
 
 
+class CameraScanThread(QThread):
+    """Probes camera indices in the background without blocking the GUI."""
+
+    cameras_found = pyqtSignal(list)  # list of {"index": int, "name": str}
+
+    def run(self):
+        from app.utils.platform import detect_cameras
+        self.cameras_found.emit(detect_cameras())
+
+
 class MainWindow(QMainWindow):
     """Main application window — tabbed control center."""
 
@@ -365,8 +375,29 @@ class MainWindow(QMainWindow):
         content = QWidget()
         layout = QVBoxLayout(content)
 
-        self._add_section_label(layout, "DEVICE")
-        self._slider_row(layout, "Device Index:", 0, 4, 0, self._on_device_changed)
+        self._add_section_label(layout, "CAMERA SELECTION")
+
+        self.camera_combo = QComboBox()
+        self.camera_combo.setPlaceholderText("Click Scan to detect cameras")
+        self.camera_combo.setToolTip("Select the camera Airpoint will use")
+        self.camera_combo.currentIndexChanged.connect(self._on_camera_combo_changed)
+        layout.addWidget(self.camera_combo)
+
+        scan_row = QHBoxLayout()
+        self.scan_btn = QPushButton("Scan for Cameras")
+        self.scan_btn.setFixedHeight(28)
+        self.scan_btn.clicked.connect(self._scan_cameras)
+        scan_row.addWidget(self.scan_btn)
+        self.scan_status = QLabel("")
+        self.scan_status.setStyleSheet("color: #888; font-size: 11px;")
+        scan_row.addWidget(self.scan_status)
+        scan_row.addStretch()
+        layout.addLayout(scan_row)
+
+        self.camera_note = QLabel("Changes take effect when tracking is restarted.")
+        self.camera_note.setStyleSheet("color: #888; font-size: 11px;")
+        self.camera_note.setVisible(False)
+        layout.addWidget(self.camera_note)
 
         res_combo = QHBoxLayout()
         res_combo.addWidget(QLabel("Resolution:"))
@@ -424,6 +455,51 @@ class MainWindow(QMainWindow):
         scroll.setWidget(content)
 
         self.tab_widget.addTab(scroll, "Camera")
+
+        # Auto-scan for cameras when the tab is built
+        self._scan_cameras()
+
+    def _scan_cameras(self):
+        """Start a background scan for connected cameras."""
+        self.scan_btn.setEnabled(False)
+        self.scan_btn.setText("Scanning...")
+        self.scan_status.setText("")
+        self._scan_thread = CameraScanThread()
+        self._scan_thread.cameras_found.connect(self._on_cameras_found)
+        self._scan_thread.start()
+
+    def _on_cameras_found(self, cameras: list):
+        """Populate the camera combo box after a scan completes."""
+        self.scan_btn.setEnabled(True)
+        self.scan_btn.setText("Scan for Cameras")
+
+        self.camera_combo.blockSignals(True)
+        self.camera_combo.clear()
+
+        if not cameras:
+            self.scan_status.setText("No cameras found")
+            self.camera_combo.blockSignals(False)
+            return
+
+        current_device = self.settings.get("camera.device_index", 0)
+        selected_combo_idx = 0
+        for i, cam in enumerate(cameras):
+            self.camera_combo.addItem(f"[{cam['index']}]  {cam['name']}", userData=cam["index"])
+            if cam["index"] == current_device:
+                selected_combo_idx = i
+
+        self.camera_combo.setCurrentIndex(selected_combo_idx)
+        self.camera_combo.blockSignals(False)
+
+        noun = "camera" if len(cameras) == 1 else "cameras"
+        self.scan_status.setText(f"{len(cameras)} {noun} found")
+
+    def _on_camera_combo_changed(self, combo_index: int):
+        """Save the selected camera index and hint the user if tracking is live."""
+        device_index = self.camera_combo.itemData(combo_index)
+        if device_index is not None:
+            self.settings.set("camera.device_index", device_index)
+            self.camera_note.setVisible(self._is_running)
 
     def _build_settings_tab(self):
         """General settings tab."""
@@ -762,9 +838,6 @@ class MainWindow(QMainWindow):
     def _on_invert_y_changed(self, state):
         self.mouse_controller.invert_y = state == Qt.Checked
         self.settings.set("cursor.invert_y", state == Qt.Checked)
-
-    def _on_device_changed(self, value):
-        self.settings.set("camera.device_index", value)
 
     def _on_resolution_changed(self, text):
         w, h = map(int, text.split("x"))
