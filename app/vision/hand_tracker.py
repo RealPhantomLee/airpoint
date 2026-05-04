@@ -1,6 +1,9 @@
 """Hand tracking using MediaPipe Tasks Vision API (v0.10+)."""
 
+import hashlib
+import ssl
 import time
+import urllib.request
 
 import cv2
 import mediapipe as mp
@@ -15,6 +18,9 @@ from app.vision.frame_processor import FrameProcessor
 
 MODEL_NAME = "hand_landmarker.task"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+# Set to the model's SHA-256 hex digest to enable integrity verification after download.
+# To get the hash after first run: sha256sum ~/.cache/airpoint/models/hand_landmarker.task
+MODEL_SHA256: str | None = None
 
 
 class HandTracker:
@@ -28,6 +34,11 @@ class HandTracker:
         (13, 17), (17, 18), (18, 19), (19, 20),
         (0, 17),
     ]
+
+    @staticmethod
+    def model_cached() -> bool:
+        """Return True if the model file is already downloaded."""
+        return (Path.home() / ".cache" / "airpoint" / "models" / MODEL_NAME).exists()
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -134,8 +145,33 @@ class HandTracker:
 
         if not model_path.exists():
             print(f"Downloading hand tracking model to {model_path}...")
-            import urllib.request
-            urllib.request.urlretrieve(MODEL_URL, str(model_path))
-            print("Model downloaded successfully.")
+            ctx = ssl.create_default_context()
+            try:
+                with urllib.request.urlopen(MODEL_URL, context=ctx) as response, \
+                        open(model_path, "wb") as out_file:
+                    total = int(response.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    while chunk := response.read(65536):
+                        out_file.write(chunk)
+                        downloaded += len(chunk)
+                        if total:
+                            pct = downloaded / total * 100
+                            print(f"\rDownloading... {pct:.0f}%  ({downloaded // 1_048_576} / {total // 1_048_576} MB)", end="", flush=True)
+                print("\nModel downloaded successfully.")
+            except Exception as e:
+                if model_path.exists():
+                    model_path.unlink()
+                raise RuntimeError(f"Failed to download model: {e}") from e
+
+            if MODEL_SHA256 is not None:
+                digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+                if digest != MODEL_SHA256:
+                    model_path.unlink()
+                    raise RuntimeError(
+                        f"Model integrity check failed.\n"
+                        f"  Expected: {MODEL_SHA256}\n"
+                        f"  Got:      {digest}\n"
+                        "The file may be corrupted or tampered with. Delete the cache and try again."
+                    )
 
         return model_path

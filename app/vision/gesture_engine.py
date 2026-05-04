@@ -119,7 +119,7 @@ class GestureEngine:
             dist = self._distance(thumb_tip[:2], index_tip_3d[:2])
             if dist < self.pinch_threshold and self._can_click():
                 gestures["click"] = True
-                self._last_click_time = time.time()
+                self._last_click_time = now
                 if (now - self._last_pinch_time) < self.double_click_delay_ms:
                     gestures["double_click"] = True
                 self._last_pinch_time = now
@@ -158,10 +158,8 @@ class GestureEngine:
                 delta = self._prev_scroll_y - index_y
                 if abs(delta) > self.scroll_threshold:
                     if self._scroll_cooldown <= 0:
-                        gestures["scroll_up"] if delta > 0 else gestures["scroll_down"]
                         gestures["scroll_up" if delta > 0 else "scroll_down"] = True
                         self._scroll_cooldown = 8
-                    self._scroll_cooldown -= 1
             self._prev_scroll_y = index_y
         else:
             self._prev_scroll_y = None
@@ -222,12 +220,12 @@ class GestureEngine:
     def _distance(self, p1, p2):
         return np.sqrt(sum((a - b) ** 2 for a, b in zip(p1, p2)))
 
-    def _is_finger_extended(self, landmarks, finger):
+    def _is_finger_extended(self, landmarks, finger, handedness="Right"):
         tip_idx = self.FINGERTIPS[finger]
         if finger == "thumb":
             tip = landmarks[tip_idx]
             ip = landmarks[3]
-            return tip[0] < ip[0]
+            return tip[0] < ip[0] if handedness == "Right" else tip[0] > ip[0]
         pip_idx = self.FINGER_PIPS[finger]
         return landmarks[tip_idx][1] < landmarks[pip_idx][1]
 

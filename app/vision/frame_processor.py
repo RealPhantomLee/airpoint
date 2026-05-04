@@ -85,18 +85,6 @@ class FrameProcessor:
         result = cv2.LUT(result, self._brightness_lut)
         return cv2.LUT(result, self._contrast_lut)
 
-    def _correct_barrel_distortion(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Apply mild barrel distortion correction for GoPro wide-angle lens.
-        Only corrects the coordinate mapping, not the visual frame.
-        Returns the frame as-is but sets up for coordinate remapping.
-        """
-        # Full undistortion is expensive and unnecessary for MediaPipe.
-        # Instead, we flag that coordinate remapping should be applied
-        # to hand landmarks. The HandTracker will use the distortion
-        # coefficients to correct landmark positions.
-        return frame
-
     def undistort_landmark(self, x: float, y: float) -> tuple[float, float]:
         """
         Correct a single landmark's (x, y) for GoPro barrel distortion.

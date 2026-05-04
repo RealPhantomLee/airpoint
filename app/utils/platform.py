@@ -72,8 +72,11 @@ def is_wayland() -> bool:
     """Check if running under Wayland."""
     if get_os() != "linux":
         return False
-    return "wayland" in platform.system().lower() or \
-           "WAYLAND_DISPLAY" in __import__("os").environ
+    import os
+    return (
+        "WAYLAND_DISPLAY" in os.environ
+        or os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+    )
 
 
 def get_default_camera_index() -> int:

@@ -3,9 +3,12 @@
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
+    QApplication,
     QMainWindow,
+    QMenu,
+    QAction,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -19,6 +22,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QMessageBox,
     QSpinBox,
+    QSystemTrayIcon,
 )
 
 
@@ -66,16 +70,43 @@ class CameraThread(QThread):
 
         actual_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.status_message.emit(f"Camera ready ({actual_w}x{actual_h})")
+
+        if not HandTracker.model_cached():
+            self.status_message.emit("Downloading hand tracking model (~170 MB). Please wait...")
 
         self.tracker = HandTracker(self.settings)
         self.engine = GestureEngine(self.settings)
         fps_counter = FPSCounter()
+        _fail_count = 0
+
+        self.status_message.emit(f"Camera ready ({actual_w}x{actual_h})")
 
         while self.running:
             ret, frame = self.cap.read()
             if not ret:
+                _fail_count += 1
+                if _fail_count >= 30:
+                    self.status_message.emit("Camera disconnected. Reconnecting...")
+                    self.cap.release()
+                    reconnected = False
+                    for _ in range(3):
+                        self.msleep(2000)
+                        if not self.running:
+                            return
+                        self.cap = cv2.VideoCapture(device)
+                        if self.cap.isOpened():
+                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                            self.cap.set(cv2.CAP_PROP_FPS, fps)
+                            self.status_message.emit(f"Camera reconnected ({actual_w}x{actual_h})")
+                            _fail_count = 0
+                            reconnected = True
+                            break
+                    if not reconnected:
+                        self.status_message.emit("Camera unavailable. Click Stop and check connection.")
+                        self.running = False
                 continue
+            _fail_count = 0
 
             self._frame_skip_counter += 1
             if self._frame_skip_counter % frame_skip != 0:
@@ -128,6 +159,10 @@ class MainWindow(QMainWindow):
         title = self.settings.get("gui.window_title", "Airpoint")
         self.setWindowTitle(title)
         self.setMinimumSize(1200, 800)
+
+        from app.control.hotkeys import MediaController
+        self._media = MediaController()
+        self._setup_tray()
 
     def _setup_ui(self):
         central = QWidget()
@@ -497,6 +532,8 @@ class MainWindow(QMainWindow):
 
         self._is_running = True
         self.start_btn.setText("Stop Tracking")
+        if hasattr(self, "_tray_toggle_action"):
+            self._tray_toggle_action.setText("Stop Tracking")
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #f44336; color: white; padding: 12px;
@@ -519,6 +556,8 @@ class MainWindow(QMainWindow):
         self.mouse_controller.drag_end()
 
         self.start_btn.setText("Start Tracking")
+        if hasattr(self, "_tray_toggle_action"):
+            self._tray_toggle_action.setText("Start Tracking")
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50; color: white; padding: 12px;
@@ -606,9 +645,11 @@ class MainWindow(QMainWindow):
             self.gesture_label.setText("Gesture: 🙌 Two-Hand Shortcut")
 
         if gestures.get("volume_up") and self.g_volume.isChecked():
+            self._media.volume_up()
             self.gesture_label.setText("Gesture: 👍 Volume Up")
 
         if gestures.get("volume_down") and self.g_volume.isChecked():
+            self._media.volume_down()
             self.gesture_label.setText("Gesture: 👈 Volume Down")
 
     def _update_fps(self, fps):
@@ -628,10 +669,66 @@ class MainWindow(QMainWindow):
                 self._stop_tracking()
 
     def closeEvent(self, event):
+        if hasattr(self, "_tray_icon") and QSystemTrayIcon.isSystemTrayAvailable():
+            event.ignore()
+            self.hide()
+            self._tray_icon.showMessage(
+                "Airpoint",
+                "Running in background. Right-click the tray icon to quit.",
+                QSystemTrayIcon.Information,
+                2000,
+            )
+            return
         if self._is_running:
             self._stop_tracking()
         self.mouse_controller.set_paused(True)
+        self.settings.save()
         event.accept()
+
+    def _setup_tray(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setBrush(QColor("#4CAF50"))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(2, 2, 12, 12)
+        painter.end()
+        self._tray_icon = QSystemTrayIcon(QIcon(pixmap), self)
+        self._tray_icon.setToolTip("Airpoint — Touchless Cursor Control")
+
+        menu = QMenu()
+        show_act = QAction("Show Window", self)
+        show_act.triggered.connect(lambda: (self.show(), self.raise_(), self.activateWindow()))
+        menu.addAction(show_act)
+
+        self._tray_toggle_action = QAction("Start Tracking", self)
+        self._tray_toggle_action.triggered.connect(self._toggle_tracking)
+        menu.addAction(self._tray_toggle_action)
+
+        menu.addSeparator()
+
+        quit_act = QAction("Quit Airpoint", self)
+        quit_act.triggered.connect(self._quit_app)
+        menu.addAction(quit_act)
+
+        self._tray_icon.setContextMenu(menu)
+        self._tray_icon.activated.connect(self._on_tray_activated)
+        self._tray_icon.show()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.DoubleClick:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+
+    def _quit_app(self):
+        if self._is_running:
+            self._stop_tracking()
+        self.mouse_controller.set_paused(True)
+        self.settings.save()
+        QApplication.instance().quit()
 
     def _on_sensitivity_changed(self, value):
         sensitivity = value / 10.0
