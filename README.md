@@ -309,6 +309,18 @@ python app/main.py
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## Related projects
+
+Other work in my portfolio across cyber, cloud, web, and AI:
+
+- [VaultKeeper](https://github.com/RealPhantomLee/VaultKeeper) — local-first encrypted knowledge platform
+- [Local-AI-Web-Workspace](https://github.com/RealPhantomLee/Local-AI-Web-Workspace) — self-hosted Ollama + AnythingLLM stack
+- [vulnerability-management-lab](https://github.com/RealPhantomLee/vulnerability-management-lab) — end-to-end VM lifecycle on VulnHub
+- [azure-security-monitoring-lab](https://github.com/RealPhantomLee/azure-security-monitoring-lab) — Azure hardening + KQL detections
+- [CyberSec-Web-Services](https://github.com/RealPhantomLee/CyberSec-Web-Services) — production C++/JS business site
+
+Full portfolio: [github.com/RealPhantomLee](https://github.com/RealPhantomLee)
+
 ## License
 
 [MIT](LICENSE)
