@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] — 2026-05-08
+
+Major refactor and repositioning. **Airpoint is now a gesture-based interaction
+framework for accessibility, presentations, and media control** — not a
+general-purpose mouse replacement. Existing config files are upgraded
+automatically; default mode is `navigation`, which preserves prior behavior.
+
+### Repositioned
+- New pitch and use-case scope. README explicitly documents what Airpoint *is* and *is not* for. Long productivity sessions, gaming, and precision work are explicit non-goals.
+
+### Added
+- **Four interaction modes**: Navigation (default cursor), Presentation (laser-style + slide control), Media (cursor disabled, palm/swipes drive media keys), Accessibility (heavily smoothed, generous debounce, cursor + click + pause only). Each mode has its own threshold profile and cursor overrides applied automatically on switch.
+- **`app/gesture_engine/` package** with a clean architecture: `BaseGesture` (priority, debounce, cooldown, mode filter), `GestureRegistry`, `ModeManager`, and a per-frame `GestureClassifier` that resolves conflicts via priority and global cooldown.
+- **`ActionDispatcher`** as the only OS-touching layer. Gestures emit `Action` objects describing intent; the dispatcher routes them to the mouse/media controllers and honors pause.
+- **`Pipeline`** class with adaptive frame skipping (targets 25 FPS) and exponential-backoff camera reconnect (1 → 2 → 4 → 8 s).
+- **`AdvancedDialog`** for opt-in power-user settings (camera resolution, tracking confidence, edge boost, axis inversion). The 5-control main panel covers everything 90% of users will touch.
+- **`MediaController.play_pause`, `slide_next`, `slide_prev`** for the new modes.
+
+### Removed
+- Eight gestures: double-click, right-click, middle-click, scroll-left, scroll-right, two-hand shortcut, fist-drag, thumb-wave-volume. They added cognitive load without commensurate value. Drag is now hold-pinch (consistent with click). Volume is a vertical swipe in Media mode.
+- Four unimplemented gesture stubs (`next_track`, `prev_track`, `copy`, `paste`) declared in the old engine but never wired up.
+- The 11-checkbox "Gestures" tab. Gesture availability is now mode-determined.
+- The 4-tab settings panel (Gestures / Cursor / Camera / Settings). The five core controls live on the main panel; the rest move into Advanced.
+- `app/control/hotkeys.py` (HotkeyManager was a dead skeleton; MediaController moved to `app/control/media.py`).
+- `app/gui/widgets.py` (unused custom widgets).
+
+### Changed
+- **Default smoothing**: `cursor.smoothing_alpha` 0.30 → 0.22, `cursor.moving_average_window` 5 → 7. Smoother default cursor for new users; existing users keep their tuned values.
+- **Default `max_num_hands`**: 2 → 1. Less ambiguity, fewer false positives.
+- Drag trigger is now thumb-index pinch *held* ≥ 350 ms instead of a closed fist. One pose for click + drag.
+- Settings file gained a `mode` key (default `navigation`).
+
+### Notes for users on 1.x
+- Your settings file is loaded as-is. The new `mode` key defaults to `navigation`; toggle modes from the dropdown.
+- If you relied on right-click, middle-click, double-click, horizontal scroll, or two-hand shortcuts, those gestures are gone in 2.0. Use OS shortcuts or open Advanced to script your own (the gesture API is small enough to subclass — see `BaseGesture`).
+
 ## [1.1.0] — 2026-05-04
 
 ### Added

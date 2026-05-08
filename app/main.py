@@ -1,47 +1,42 @@
-"""Airpoint - Touchless Cursor Control.
+"""Airpoint — Touchless interaction framework.
 
-Main entry point for the application.
+Entry point. The MainWindow owns the rest of the dependency graph
+(MouseController, MediaController, ModeManager, GestureClassifier,
+ActionDispatcher, Pipeline), so this stays small.
 """
 
-import sys
-import os
+from __future__ import annotations
 
-# Add project root to path
+import os
+import sys
+
+# Make the project root importable when running as `python -m app.main` or
+# directly via `python app/main.py`.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 
 from app.config import Settings
-from app.control.mouse import MouseController
-from app.gui.window import MainWindow
+from app.gui.main_window import MainWindow
 
 
-def main():
-    """Application entry point."""
-    # Load settings
+def main() -> int:
     settings = Settings()
 
-    # Enable high DPI scaling
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
-    # Create application
     app = QApplication(sys.argv)
     app.setApplicationName("Airpoint")
     app.setOrganizationName("Airpoint")
+    app.setQuitOnLastWindowClosed(False)  # tray keeps app alive when window hidden
 
-    # Create mouse controller
-    mouse_controller = MouseController(settings)
-    mouse_controller.set_paused(True)
-
-    # Create and show main window
-    window = MainWindow(settings, mouse_controller)
+    window = MainWindow(settings)
     window.show()
 
-    # Run
-    sys.exit(app.exec_())
+    return app.exec_()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

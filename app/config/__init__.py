@@ -87,15 +87,24 @@ class Settings:
         clamp("camera.device_index", 0, 0, 9, int)
         clamp("camera.fps", 30, 1, 120, int)
         clamp("camera.frame_skip", 2, 1, 10, int)
-        clamp("hand_tracking.max_num_hands", 2, 1, 2, int)
+        clamp("hand_tracking.max_num_hands", 1, 1, 2, int)
         clamp("hand_tracking.min_detection_confidence", 0.6, 0.1, 1.0)
-        clamp("hand_tracking.min_tracking_confidence", 0.5, 0.1, 1.0)
-        clamp("cursor.sensitivity", 1.5, 0.1, 5.0)
-        clamp("cursor.smoothing_alpha", 0.3, 0.05, 0.99)
+        clamp("hand_tracking.min_tracking_confidence", 0.6, 0.1, 1.0)
+        # Cursor smoothing defaults bumped: lower alpha + larger window =
+        # smoother default behavior, less jitter for new users.
+        clamp("cursor.sensitivity", 1.3, 0.1, 5.0)
+        clamp("cursor.smoothing_alpha", 0.22, 0.05, 0.99)
+        clamp("cursor.moving_average_window", 7, 1, 30, int)
         clamp("cursor.deadzone", 0.02, 0.0, 0.5)
-        clamp("gestures.pinch_threshold", 0.04, 0.01, 0.2)
-        clamp("gestures.scroll_threshold", 0.015, 0.005, 0.1)
+        clamp("gestures.pinch_threshold", 0.05, 0.01, 0.2)
         clamp("gestures.click_debounce_ms", 200, 50, 1000, int)
+
+        # Mode setting (new). If absent or unknown, default to "navigation"
+        # which preserves prior cursor-driven behavior for upgrading users.
+        valid_modes = {"navigation", "presentation", "media", "accessibility"}
+        mode = self.get("mode", "navigation")
+        if mode not in valid_modes:
+            self.set_quiet("mode", "navigation")
 
         res = self.get("camera.resolution", [1280, 720])
         if not isinstance(res, list) or len(res) != 2:
@@ -110,31 +119,52 @@ class Settings:
                 self.set_quiet("camera.resolution", [1280, 720])
 
     def _create_default(self) -> dict:
-        """Create default config if file missing."""
+        """Create default config if file missing.
+
+        Defaults are tuned for first-run usability:
+            - Navigation mode (cursor + click + drag + scroll + pause)
+            - Single-hand tracking (max_num_hands=1) — less ambiguity
+            - Heavier smoothing (alpha=0.22, window=7) — calmer cursor
+        """
         default = {
-            "camera": {"device_index": 0, "resolution": [640, 480], "fps": 30},
+            "mode": "navigation",
+            "camera": {
+                "device_index": 0,
+                "resolution": [1280, 720],
+                "fps": 30,
+                "frame_skip": 2,
+            },
             "hand_tracking": {
-                "max_num_hands": 2,
+                "max_num_hands": 1,
                 "model_complexity": 0,
                 "min_detection_confidence": 0.6,
-                "min_tracking_confidence": 0.5,
+                "min_tracking_confidence": 0.6,
             },
             "cursor": {
-                "sensitivity": 1.5,
-                "smoothing_alpha": 0.3,
-                "moving_average_window": 5,
+                "sensitivity": 1.3,
+                "smoothing_alpha": 0.22,
+                "moving_average_window": 7,
+                "deadzone": 0.02,
+                "invert_x": False,
+                "invert_y": True,
+                "edge_boost": True,
+                "edge_boost_factor": 2.0,
             },
             "gestures": {
                 "pinch_threshold": 0.05,
-                "scroll_threshold": 0.02,
                 "click_debounce_ms": 200,
             },
             "gui": {
-                "window_title": "Airpoint - Touchless Cursor Control",
-                "preview_width": 640,
-                "preview_height": 480,
+                "window_title": "Airpoint",
+                "preview_width": 480,
+                "preview_height": 360,
+                "theme": "dark",
             },
-            "privacy": {"no_data_storage": True, "no_network_calls": True},
+            "privacy": {
+                "no_data_storage": True,
+                "no_network_calls": True,
+                "local_only": True,
+            },
         }
         self._config = default
         self.save()

@@ -1,4 +1,5 @@
 {
+  "mode": "navigation",
   "camera": {
     "device_index": 0,
     "resolution": [
@@ -26,7 +27,7 @@
     "moving_average_window": 5,
     "deadzone": 0.02,
     "invert_x": false,
-    "invert_y": false,
+    "invert_y": true,
     "edge_boost": true,
     "edge_boost_factor": 2.0
   },
